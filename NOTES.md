@@ -85,6 +85,18 @@ Running log of decisions, reasons, and results. Write the report from this.
 - Reason: the rental data is older (about 2020) than the realtor.com data, and the realtor data has more than 10k NC samples by itself (~40.8k usable). NC rentals had only 7.5k after dedup.
 - Trade-off: the project no longer predicts rent, but the purchase price is half of any rental-investment decision, so the investor angle carries over.
 
+### 6. Exploration results (Nov 25, `notebooks/01_eda.ipynb`, figures fig01–fig09)
+- **Filtering funnel:** 2,226,382 US → 85,745 NC → 84,591 for_sale/sold → 42,946 with bed/bath/size → **40,767 after dedup** (24,462 for sale, 16,305 sold).
+- **Data time period:** all sold homes sold **Oct 26, 2021 to Apr 26, 2022**. The latest date on any listing is June 9, 2022, so this is a ~mid-2022 snapshot, only about 1–2 years newer than the Craigslist data (about 2020). The main reason the switch still holds is the sample size: 40.8k NC homes vs. 7.5k rentals. Limitation for the report: NC prices have changed since 2022.
+- **Missing:** prev_sold_date 29.2%, acre_lot 13.3%, brokered_by 1.0%, street 8 rows, zip 1 row.
+  - For sold homes, `prev_sold_date` is the sale date itself, so it can't be used as a feature (it marks a home as sold, which leaks the status).
+- **Skew:** price skewness 7.75 → **-0.11 after log**. Mean $430,748 vs. median $335,000. → Predict log(price). (Fig 1)
+- **Impossible values** (Fig 2): price < $10k: 4 rows; > $5M: 38; size < 300 sqft: 9; > 15,000 sqft: 11; beds > 10: 39; baths > 10: 43; lot > 100 acres: 45. Max values: 90 beds, 54 baths, 800,900 sqft, 100,000 acres.
+- **Correlations** (Fig 8): raw price vs. size **0.17** (wrecked by outliers); log price vs. log size **0.70**. Log price with: bath 0.64, bed 0.42, log lot 0.19, sold -0.14. Size–bath 0.74, bed–bath 0.69, size–bed 0.62 → strong overlap (multicollinearity) → motivates Ridge.
+- **Beds/baths** (Fig 5): median price rises steadily, e.g. 3 bed $300k → 4 bed $422k → 5 bed $575k; 2 bath $265k → 3 bath $375k → 4 bath $590k.
+- **Location** (Fig 6): median $/sqft Fayetteville $122, Greenville $125, Jacksonville $128, New Bern $141, Gastonia $163, Leland $184, Wilmington $205, Charlotte $213, Raleigh $229, Asheville $287. ZIP medians range from $16 to $1,290/sqft. 727 ZIPs, median 17 homes each, 281 (39%) with < 10 homes. (Fig 9)
+- **Status** (Fig 7): for_sale median $353,720 / 1,891 sqft vs. sold $300,000 / 1,664 sqft. Part of the gap is size.
+
 ## Key results
 (fill in as we go)
 
