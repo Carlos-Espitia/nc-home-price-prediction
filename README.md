@@ -5,7 +5,7 @@ ITSC 3156 (Introduction to Machine Learning) final project by Carlos Espitia, UN
 This project predicts the price of North Carolina homes from their size, bedrooms, bathrooms, lot size, sale status and location (ZIP code). It compares five models from the course: linear regression solved with OLS and with gradient descent, polynomial + Ridge regression, KNN regression, and a neural network. It also uses K-means to segment NC housing markets. Finally, the model is used to screen for-sale listings priced below what similar homes go for.
 
 ## Results at a glance
-Test set: 6,059 NC homes never used for training or tuning.
+**Dataset: 40,390 NC homes** after cleaning, with 7 input features, split 70/15/15 into 28,273 training, 6,058 validation and 6,059 test homes. The table below is on the **test set**: homes never used for training or tuning.
 
 | Model | Median % error | Homes within ±20% | R² (log price) |
 |---|---|---|---|
