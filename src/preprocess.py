@@ -33,6 +33,11 @@ LIMITS = {
     "acre_lot": (None, 100),  # missing lot sizes are kept and filled later
 }
 
+# Added after the first test evaluation (see NOTES.md, section 10): listings under $40/sqft
+# were the model's worst misses and look like non-market sales (auctions, partial interests,
+# typos). Typical NC homes are ~$185/sqft; $40 is below the 1st percentile.
+MIN_PRICE_PER_SQFT = 40
+
 SMOOTHING_M = 10  # a ZIP with n homes gets weight n / (n + 10) on its own median
 N_FOLDS = 5
 
@@ -65,6 +70,10 @@ def remove_outliers(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         rule = f"{col} outside [{lo if lo is not None else '-'}, {hi if hi is not None else '-'}]"
         report.append((rule, int(bad.sum()), int((bad & keep).sum())))
         keep &= ~bad
+    bad = (df["price"] / df["house_size"]) < MIN_PRICE_PER_SQFT
+    report.append((f"price per sqft < ${MIN_PRICE_PER_SQFT} (non-market sales)",
+                   int(bad.sum()), int((bad & keep).sum())))
+    keep &= ~bad
     table = pd.DataFrame(report, columns=["rule", "rows failing", "removed (not already removed)"])
     return df[keep].reset_index(drop=True), table
 

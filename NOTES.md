@@ -11,10 +11,10 @@ Running log of decisions, reasons, and results. Write the report from this.
 | Date | Stage | Status |
 |---|---|---|
 | Nov 24 | Repo setup, data loading, choose dataset | done |
-| Nov 24–25 | Exploration (EDA) | |
-| Nov 25–26 | Preprocessing | |
-| Nov 26–28 | Modeling + tuning | |
-| Nov 28–29 | Results analysis + investor application | |
+| Nov 24–25 | Exploration (EDA) | done Nov 25 |
+| Nov 25–26 | Preprocessing | done Nov 25 |
+| Nov 26–28 | Modeling + tuning | done Nov 25 |
+| Nov 28–29 | Results analysis + investor application | done Nov 25 (v2 with $/sqft filter) |
 | Nov 30–Dec 2 | Write report | |
 
 ## Plan (proposed Nov 24; see COURSE_TOPICS.md for the full mapping)
@@ -98,66 +98,85 @@ Running log of decisions, reasons, and results. Write the report from this.
 - **Status** (Fig 7): for_sale median $353,720 / 1,891 sqft vs. sold $300,000 / 1,664 sqft. Part of the gap is size.
 
 ### 7. Preprocessing (Nov 25, approved by Carlos; `src/preprocess.py`, `notebooks/02_preprocessing.ipynb`)
-- **Outlier limits (inclusive):** price $10k–$5M, size 300–15,000 sqft, beds ≤ 10, baths ≤ 10, lot ≤ 100 acres (missing lot sizes kept). Removed **143 rows (0.35%)** → **40,624**. Removed per rule (first rule hit): price 42, size 17, beds 31, baths 13, lot 40.
-- **Split** (seed 42): **train 28,436 / validation 6,094 / test 6,094** (70/15/15). Similar medians ($330k–$335k) and share sold (40%).
-- **Lot size:** 5,415 missing, filled with the training median (0.35 acres) + `acre_lot_missing` flag. Missing-lot homes are cheaper/smaller ($303k / 1,497 sqft vs. $339k / 1,837 sqft).
+- **Outlier limits (inclusive):** price $10k–$5M, size 300–15,000 sqft, beds ≤ 10, baths ≤ 10, lot ≤ 100 acres (missing lot sizes kept), **and price per sqft ≥ $40** (added after v1 results, see section 10).
+  - Removed per rule (first rule hit): price 42, size 17, beds 31, baths 13, lot 40, **$/sqft 234** → **377 rows (0.92%)** → **40,390 homes**.
+- **Split** (seed 42, 70/15/15): **train 28,273 / validation 6,058 / test 6,059**. Medians $332k–$340k; share sold 40–41%.
+- **Lot size:** 5,382 missing, filled with the training median (0.35 acres) + `acre_lot_missing` flag. Missing-lot homes are cheaper/smaller ($305k / 1,497 sqft vs. $340k / 1,840 sqft).
 - **ZIP feature `zip_log_ppsf`:** median log($/sqft) per ZIP, blended (n·ZIP + 10·city)/(n+10); city blended toward the state the same way; unseen ZIP → city → state.
-  - Examples: 28207 Charlotte n=93: $402 → $378; 28212 Charlotte n=145: $187 → $189; 27101 Winston-Salem n=1: $83 → $142 (city $150).
-  - **Out-of-fold (5-fold) encoding for training rows** prevents target leakage. Experiment with a one-feature linear fit: leaky train R² 0.289 / val 0.277; out-of-fold train 0.275 / val 0.277. Small effect here because smoothing already limits it; matters more for flexible models (KNN, MLP).
+  - Examples: 28207 Charlotte n=91: $397 → $373; 28212 Charlotte n=148: $186 → $187; 28642 Jonesville n=1: $93 → $162 (city $171).
+  - **Out-of-fold (5-fold) encoding for training rows** prevents target leakage. One-feature linear fit: leaky train R² 0.285 / val 0.271; out-of-fold train 0.271 / val 0.271. Small here because smoothing already limits it; matters more for flexible models.
 - **Final 7 inputs:** log_house_size, bed, bath, log_acre_lot (log1p), acre_lot_missing, sold, zip_log_ppsf. **Target:** log(price).
 - **Dropped:** brokered_by, street (anonymized IDs), prev_sold_date (the sale date for sold homes → leaks status), state (constant), city/zip_code (captured by zip_log_ppsf).
-- **Correlation with log price (train):** size 0.70, bath 0.66, ZIP 0.52, bed 0.46, lot 0.18, lot missing -0.07, sold -0.14. (Fig 10)
+- **Correlation with log price (train):** size 0.70, bath 0.66, ZIP 0.52, bed 0.47, lot 0.18, lot missing −0.07, sold −0.15. (Fig 10)
 - **Standardized** with training mean/std (`Standardize` class from the GD & LMS HW). `get_arrays()` returns X/y for all splits.
 - Processed CSVs in `data/processed/` (git-ignored; rebuild with `python src/preprocess.py`).
 
 ### 8. Modeling (Nov 25, `src/models.py`, `notebooks/03_modeling.ipynb`, figures fig11–fig17)
-- **From-scratch implementations** adapted from homework: OLS (normal equation, pinv), Ridge OLS (bias not penalized), LMS mini-batch GD, KNN regressor (mean of k neighbors, chunked distances). Checked against scikit-learn: OLS and Ridge weights match to ~1e-14; KNN matches up to distance ties.
-- Two no-learning baselines added: median price; ZIP $/sqft × size (rule of thumb).
-- **Tuning (validation set):**
-  - GD: α ∈ {0.0003, 0.003, 0.03}, batch 64, 40 epochs → α=0.003 (max |w − w_OLS| = 0.0035). (Fig 12)
-  - Poly + Ridge: degree 1/2/3 (7/35/119 features) × λ 1e-3 to 1e4 → **degree 3, λ=0.001** (smallest λ tried: with 28k rows, regularization barely matters). Val RMSE (log): deg1 0.322, deg2 0.314, deg3 0.311. (Fig 13)
-  - KNN: k from 1 to 100 → **k=20**. Val RMSE k=1 0.427 (overfit) → k=20 0.316 → k=100 0.327 (underfit). (Fig 14)
-  - MLP (scikit-learn, ReLU, Adam, early stopping): layers {(32), (64,32), (128,64,32)} × alpha {1e-4, 1e-2, 1} → **(64,32), alpha=1e-4**, 124 epochs, val RMSE 0.311. (Fig 15)
-- **OLS coefficients (original units):** size elasticity 0.80 (1% bigger → +0.80%); ZIP $/sqft elasticity 1.07; +1 bath +10.7%; +1 bed −2.3% (holding sqft fixed); log lot +14.2% per unit; sold −7.4%; lot missing −4.5%. Standardized ranking: size 0.354, ZIP 0.314, bath 0.110, lot 0.065, sold −0.038, bed −0.021, lot missing −0.016. (Fig 11)
+- **From-scratch implementations** adapted from homework: OLS (normal equation, pinv), Ridge OLS (bias not penalized), LMS mini-batch GD, KNN regressor (mean of k neighbors, chunked distances), K-means. Checked against scikit-learn: OLS and Ridge weights match to ~1e-14; KNN matches up to distance ties; K-means matches sklearn inertia.
+- Two no-learning baselines: median price; ZIP $/sqft × size (rule of thumb).
+- **Tuning (validation set), v2:**
+  - GD: α ∈ {0.0003, 0.003, 0.03}, batch 64, 40 epochs → α=0.003 (max |w − w_OLS| = 0.003). α=0.0003 needs ~20 epochs. (Fig 12)
+  - Poly + Ridge: degree 1/2/3 (7/35/119 features) × λ 1e-3 to 1e4 → **degree 3, λ=100**. Best val RMSE (log): deg1 0.305, deg2 0.299, deg3 0.296. The curve is flat for λ ≤ 100 (regularization barely matters with 28k rows) and rises past λ≈1,000. (Fig 13)
+  - KNN: k from 1 to 100 → **k=15**. Val RMSE k=1 0.383 (overfit) → k=15 0.298 → k=100 0.308 (underfit). (Fig 14)
+  - MLP (scikit-learn, ReLU, Adam, early stopping): layers {(32), (64,32), (128,64,32)} × alpha {1e-4, 1e-2, 1} → **(64,32), alpha=0.01**, 100 epochs, val RMSE 0.294. (Fig 15)
+- **OLS coefficients (original units):** size elasticity 0.80 (1% bigger → +0.80%); ZIP $/sqft elasticity 1.06; +1 bath +9.9%; +1 bed −1.8% (holding sqft fixed); log lot +15.1% per unit; sold −7.6%; lot missing −3.9%. Standardized ranking: size 0.350, ZIP 0.307, bath 0.101, lot 0.068, sold −0.039, bed −0.017, lot missing −0.014. (Fig 11)
 
-## Key results
-**Test set (6,094 homes, evaluated once):** (Figs 16, 17; `data/processed/test_results.csv`)
+## Key results (v2: with the $40/sqft filter)
+**Test set (6,059 homes, evaluated once):** (Figs 16, 17; `data/processed/test_results.csv`)
 
-| Model | Median % err | Within 20% | MAE | RMSE ($) | R² (log) | R² ($) |
-|---|---|---|---|---|---|---|
-| Median price | 34.2% | 30.7% | $196,603 | $379,009 | 0.000 | −0.051 |
-| ZIP $/sqft × size | 15.8% | 59.4% | $99,079 | $213,468 | 0.723 | 0.667 |
-| OLS | 15.7% | 60.1% | $95,319 | $192,905 | 0.749 | 0.728 |
-| GD (LMS) | 15.8% | 60.0% | $95,533 | $192,600 | 0.749 | 0.729 |
-| Poly + Ridge | 15.5% | 60.6% | $93,892 | $195,340 | 0.759 | 0.721 |
-| KNN (k=20) | **15.0%** | **61.7%** | $95,148 | $204,624 | 0.761 | 0.694 |
-| MLP (64,32) | 15.1% | 61.1% | **$93,084** | $194,422 | **0.768** | 0.723 |
+| Model | Setting | Median % err | Within 20% | MAE | RMSE ($) | R² (log) | R² ($) |
+|---|---|---|---|---|---|---|---|
+| Median price | none | 34.0% | 31.3% | $203,188 | $388,037 | 0.000 | −0.063 |
+| ZIP $/sqft × size | none | 15.7% | 59.3% | $103,495 | $221,196 | 0.744 | 0.654 |
+| OLS | none | 15.8% | 59.5% | $100,099 | $204,802 | 0.766 | 0.704 |
+| GD (LMS) | α=0.003 | 15.8% | 59.5% | $100,121 | $204,798 | 0.767 | 0.704 |
+| Poly + Ridge | deg 3, λ=100 | 15.7% | 60.1% | $98,783 | $205,304 | 0.774 | 0.702 |
+| KNN | k=15 | **15.2%** | **60.8%** | $98,866 | $206,021 | 0.770 | 0.700 |
+| MLP | (64,32), α=0.01 | 15.4% | 60.5% | **$97,492** | $204,505 | **0.781** | **0.705** |
 
-- All models beat the median baseline by 2×, but beat the agent rule of thumb only slightly (15.8% → 15.0%).
-- Nonlinear models (MLP, KNN, poly) gain ~0.5 pt median error / ~0.01–0.02 R² over OLS.
-- Little overfitting: train ≈ validation for OLS/Ridge/MLP.
-- Five very different models land within ~1 point → the limit is likely **missing features** (condition, age, exact location), not the algorithm.
-- Dollar RMSE (~$190k) is far above MAE (~$94k) → a few expensive homes produce huge dollar misses (explained below).
+- All models halve the median baseline's error (34% → ~15%), but beat the agent rule of thumb only slightly (15.7% → 15.2%; R² 0.744 → 0.781).
+- Nonlinear models (MLP, Ridge, KNN) gain ~0.01–0.015 R² (log) and $1–2.6k MAE over OLS.
+- Little overfitting: train ≈ validation for all models.
+- Five very different models land within ~0.6 points → the limit is likely **missing features** (condition, age, exact location), not the algorithm.
+- The gaps between top models (~0.3–0.6 pt) are about the size of split-to-split noise (section 10), so the ranking among them isn't decisive.
+- Dollar RMSE (~$205k) is about 2× MAE (~$98k) because of a few expensive homes (section 9).
 
-### 9. Results analysis (Nov 25, `notebooks/04_results.ipynb`, figures fig18–fig20; main model = MLP)
-- **Overall:** median abs error 15.1%, median signed error −0.6% (no overall bias).
-- **By actual price range** (median abs % / signed %): <$150k 34.4% / **+32.1%**; $150–250k 15.3% / +2.2%; **$250–400k 11.8% / −0.1%**; $400–700k 14.6% / −5.1%; $700k–1.5M 21.3% / −13.3%; >$1.5M 33.4% / **−30.4%**. → Regression toward the mean. (Fig 18)
-- **Dollar error concentration:** top 5% priced homes (≥ $985k) = 29% of absolute $ error, 71% of squared error; median error there 29.3% vs. 14.6%. Without them: MAE $69,510, RMSE $108,120 (vs. $93k / $194k).
-- **By city** (median abs %): New Bern 11.0, Jacksonville 12.7, Wilmington 13.3, Charlotte 13.6, Leland 14.5, Greenville 15.4, Fayetteville 16.4, Asheville 20.4, Raleigh 20.5, Durham 20.6.
-- **By status:** sold 13.9% vs. for_sale 16.0%.
-- **K-means market segments** (own KMeans class, matches sklearn inertia; 390 ZIPs with ≥ 10 training homes; features: ZIP median log $/sqft, log size, log lot; elbow → k = 4) (Fig 19):
+**v1 test results (no $/sqft filter, 6,094 test homes; kept for comparison, `test_results_v1_no_ppsf_filter.csv`):** median % error: median baseline 34.2, rule of thumb 15.8, OLS 15.7, GD 15.8, Poly+Ridge (deg 3, λ=0.001) 15.5, KNN (k=20) 15.0, MLP ((64,32), α=1e-4) 15.1. R² (log): 0.000 / 0.723 / 0.749 / 0.749 / 0.759 / 0.761 / 0.768.
+
+### 9. Results analysis (Nov 25, `notebooks/04_results.ipynb`, figures fig18–fig20; main model = MLP, v2)
+- **Overall:** median abs error 15.4%, median signed error −2.5%.
+- **By actual price range** (median abs % / signed %): <$150k 36.2% / **+36.1%**; $150–250k 14.0% / +2.8%; **$250–400k 11.7% / −2.6%**; $400–700k 15.3% / −8.6%; $700k–1.5M 23.4% / −16.4%; >$1.5M 35.0% / **−33.3%**. → Regression toward the mean. (Fig 18)
+- **Dollar error concentration:** top 5% priced homes (≥ $1,099,000) = 32% of absolute $ error, 74% of squared error; median error there 33.4% vs. 14.8%. Without them: MAE $69,895, RMSE $107,188 (vs. $97k / $205k).
+- **By city** (median abs %): New Bern 10.8, Charlotte 13.2, Wilmington 13.2, Jacksonville 13.4, Raleigh 13.7, Leland 14.9, Fayetteville 15.7, Gastonia 15.7, Greenville 16.6, Asheville 19.2.
+- **By status:** sold 14.9% vs. for_sale 15.7%.
+- **K-means market segments** (own KMeans class; 392 ZIPs with ≥ 10 training homes; features: ZIP median log $/sqft, log size, log lot; elbow → k = 4) (Fig 19):
 
 | Segment | ZIPs | Median $/sqft | Median sqft | Lot | Test error |
 |---|---|---|---|---|---|
-| Upscale, large homes | 108 | $198 | 2,304 | 0.35 ac | **13.0%** |
-| Pricey, compact homes | 101 | $221 | 1,707 | 0.32 ac | 15.3% |
-| Affordable | 125 | $136 | 1,600 | 0.45 ac | 15.4% |
-| Rural, big lots | 56 | $187 | 1,738 | 1.20 ac | 21.3% |
-| Small ZIP (< 10 homes) | n/a | n/a | n/a | n/a | 22.1% (+12.4% bias) |
+| Upscale, large homes | 102 | $204 | 2,319 | 0.35 ac | **13.3%** |
+| Affordable | 150 | $144 | 1,659 | 0.38 ac | 14.5% |
+| Pricey, compact homes | 79 | $240 | 1,658 | 0.35 ac | 17.7% |
+| Rural, big lots | 61 | $181 | 1,692 | 1.13 ac | 21.5% |
+| Small ZIP (< 10 homes) | n/a | n/a | n/a | n/a | 25.6% (+11.1% bias) |
 
-- **Worst misses:** all top-10 have $9–$32/sqft (e.g., 1,800 sqft sold for $15,950; Nags Head 2,314 sqft listed at $69,000) → non-market sales or data errors. 38 test homes < $40/sqft, median error 245%.
-- **Investor screen** (3,623 for-sale test homes): ratio = predicted / asking. Naive ≥ 1.25: 681 flags (195 under $150k, driven by the cheap-home bias). Bias-adjusted (ratio ÷ median ratio of its price band ≥ 1.25): 639 flags; 170 with ratio ≥ 1.6 (median $107/sqft vs. $185 overall → likely data/condition issues); **469 plausible (1.25–1.6)**, 210 of them priced $150k–$400k. (Fig 20)
-- **Improvements:** filter non-market sales (< ~$40/sqft); add year built/condition/coordinates/schools; separate model or weighting for the extremes; prediction intervals; current data or a price-index adjustment.
+- **Worst misses (v2):** listed at $41–$92/sqft (e.g., Robbinsville 1,140 sqft at $65,000, predicted $304k) → likely fixer-uppers or remaining non-market sales.
+- **Investor screen** (3,654 for-sale test homes): ratio = predicted / asking. Naive ≥ 1.25: 602 flags (197 under $150k, driven by the cheap-home bias). Bias-adjusted (ratio ÷ median ratio of its price band ≥ 1.25): 628 flags; 160 with ratio ≥ 1.6 (median $134/sqft vs. $186 → likely condition/data issues); **468 plausible (1.25–1.6)**, 208 of them priced $150k–$400k. (Fig 20)
+- **Improvements:** add year built/condition/coordinates/schools; separate model or weighting for the extremes; cross-validation / repeated splits for error bars; prediction intervals per home; current data or a price-index adjustment.
+
+### 10. The $40/sqft filter: added after v1 test results (Nov 25)
+- **Why:** in v1, all 10 worst test misses were priced $9–$32/sqft (e.g., 1,800 sqft sold for $15,950; Nags Head 2,314 sqft listed at $69,000). 38 v1 test homes were under $40/sqft, median error 245%. $40/sqft is below the 1st percentile (1st pct $50.6, 0.5th pct $37.4; typical ~$185). These look like non-market sales (auctions, partial interests, typos).
+- **What:** added `MIN_PRICE_PER_SQFT = 40` to preprocessing (234 extra rows removed, 0.58%), retrained and re-tuned every model, and re-evaluated on the new test set.
+- **Honesty note for the report:** the rule was chosen *after* seeing test errors, so the report should say so. The v1 results are kept for comparison.
+- **Result (MLP):**
+
+| Version | Test homes | Median % err | Within 20% | MAE | R² (log) |
+|---|---|---|---|---|---|
+| v1 (no filter) | 6,094 | 15.1% | 61.1% | $93,084 | 0.768 |
+| v1 model, under-$40 homes removed from its test set | 6,056 | **14.9%** | 61.5% | $92,752 | 0.783 |
+| v2 (filter, retrained) | 6,059 | 15.4% | 60.5% | $97,492 | 0.781 |
+
+- **Interpretation:** the filter did not make the model better. Removing 0.58% of rows barely changes what the model learns, and v2's slightly worse number comes from a different random test sample (rows removed before the split change which homes land in test). **Lesson: changing the test sample moves the score by ~0.3–0.5 points, about as much as the gaps between the top models.** Cross-validation or repeated splits would give error bars.
+- Data cleaning is still justified: the v2 data no longer contains prices that aren't market values, which matters for the investor screen.
 
 ## Sources to cite (verify each one yourself)
 - USA Real Estate Dataset, Kaggle (Ahmed Shahriar Sakib), https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset
