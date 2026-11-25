@@ -110,8 +110,34 @@ Running log of decisions, reasons, and results. Write the report from this.
 - **Standardized** with training mean/std (`Standardize` class from the GD & LMS HW). `get_arrays()` returns X/y for all splits.
 - Processed CSVs in `data/processed/` (git-ignored; rebuild with `python src/preprocess.py`).
 
+### 8. Modeling (Nov 25, `src/models.py`, `notebooks/03_modeling.ipynb`, figures fig11–fig17)
+- **From-scratch implementations** adapted from homework: OLS (normal equation, pinv), Ridge OLS (bias not penalized), LMS mini-batch GD, KNN regressor (mean of k neighbors, chunked distances). Checked against scikit-learn: OLS and Ridge weights match to ~1e-14; KNN matches up to distance ties.
+- Two no-learning baselines added: median price; ZIP $/sqft × size (rule of thumb).
+- **Tuning (validation set):**
+  - GD: α ∈ {0.0003, 0.003, 0.03}, batch 64, 40 epochs → α=0.003 (max |w − w_OLS| = 0.0035). (Fig 12)
+  - Poly + Ridge: degree 1/2/3 (7/35/119 features) × λ 1e-3 to 1e4 → **degree 3, λ=0.001** (smallest λ tried: with 28k rows, regularization barely matters). Val RMSE (log): deg1 0.322, deg2 0.314, deg3 0.311. (Fig 13)
+  - KNN: k from 1 to 100 → **k=20**. Val RMSE k=1 0.427 (overfit) → k=20 0.316 → k=100 0.327 (underfit). (Fig 14)
+  - MLP (scikit-learn, ReLU, Adam, early stopping): layers {(32), (64,32), (128,64,32)} × alpha {1e-4, 1e-2, 1} → **(64,32), alpha=1e-4**, 124 epochs, val RMSE 0.311. (Fig 15)
+- **OLS coefficients (original units):** size elasticity 0.80 (1% bigger → +0.80%); ZIP $/sqft elasticity 1.07; +1 bath +10.7%; +1 bed −2.3% (holding sqft fixed); log lot +14.2% per unit; sold −7.4%; lot missing −4.5%. Standardized ranking: size 0.354, ZIP 0.314, bath 0.110, lot 0.065, sold −0.038, bed −0.021, lot missing −0.016. (Fig 11)
+
 ## Key results
-(fill in as we go)
+**Test set (6,094 homes, evaluated once):** (Figs 16, 17; `data/processed/test_results.csv`)
+
+| Model | Median % err | Within 20% | MAE | RMSE ($) | R² (log) | R² ($) |
+|---|---|---|---|---|---|---|
+| Median price | 34.2% | 30.7% | $196,603 | $379,009 | 0.000 | −0.051 |
+| ZIP $/sqft × size | 15.8% | 59.4% | $99,079 | $213,468 | 0.723 | 0.667 |
+| OLS | 15.7% | 60.1% | $95,319 | $192,905 | 0.749 | 0.728 |
+| GD (LMS) | 15.8% | 60.0% | $95,533 | $192,600 | 0.749 | 0.729 |
+| Poly + Ridge | 15.5% | 60.6% | $93,892 | $195,340 | 0.759 | 0.721 |
+| KNN (k=20) | **15.0%** | **61.7%** | $95,148 | $204,624 | 0.761 | 0.694 |
+| MLP (64,32) | 15.1% | 61.1% | **$93,084** | $194,422 | **0.768** | 0.723 |
+
+- All models beat the median baseline by 2×, but beat the agent rule of thumb only slightly (15.8% → 15.0%).
+- Nonlinear models (MLP, KNN, poly) gain ~0.5 pt median error / ~0.01–0.02 R² over OLS.
+- Little overfitting: train ≈ validation for OLS/Ridge/MLP.
+- Five very different models land within ~1 point → the limit is likely **missing features** (condition, age, exact location), not the algorithm.
+- Dollar RMSE (~$190k) is far above MAE (~$94k) → a few expensive homes produce huge dollar misses. Look at this in error analysis.
 
 ## Sources to cite (verify each one yourself)
 - USA Real Estate Dataset, Kaggle (Ahmed Shahriar Sakib), https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset
