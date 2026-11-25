@@ -137,7 +137,27 @@ Running log of decisions, reasons, and results. Write the report from this.
 - Nonlinear models (MLP, KNN, poly) gain ~0.5 pt median error / ~0.01–0.02 R² over OLS.
 - Little overfitting: train ≈ validation for OLS/Ridge/MLP.
 - Five very different models land within ~1 point → the limit is likely **missing features** (condition, age, exact location), not the algorithm.
-- Dollar RMSE (~$190k) is far above MAE (~$94k) → a few expensive homes produce huge dollar misses. Look at this in error analysis.
+- Dollar RMSE (~$190k) is far above MAE (~$94k) → a few expensive homes produce huge dollar misses (explained below).
+
+### 9. Results analysis (Nov 25, `notebooks/04_results.ipynb`, figures fig18–fig20; main model = MLP)
+- **Overall:** median abs error 15.1%, median signed error −0.6% (no overall bias).
+- **By actual price range** (median abs % / signed %): <$150k 34.4% / **+32.1%**; $150–250k 15.3% / +2.2%; **$250–400k 11.8% / −0.1%**; $400–700k 14.6% / −5.1%; $700k–1.5M 21.3% / −13.3%; >$1.5M 33.4% / **−30.4%**. → Regression toward the mean. (Fig 18)
+- **Dollar error concentration:** top 5% priced homes (≥ $985k) = 29% of absolute $ error, 71% of squared error; median error there 29.3% vs. 14.6%. Without them: MAE $69,510, RMSE $108,120 (vs. $93k / $194k).
+- **By city** (median abs %): New Bern 11.0, Jacksonville 12.7, Wilmington 13.3, Charlotte 13.6, Leland 14.5, Greenville 15.4, Fayetteville 16.4, Asheville 20.4, Raleigh 20.5, Durham 20.6.
+- **By status:** sold 13.9% vs. for_sale 16.0%.
+- **K-means market segments** (own KMeans class, matches sklearn inertia; 390 ZIPs with ≥ 10 training homes; features: ZIP median log $/sqft, log size, log lot; elbow → k = 4) (Fig 19):
+
+| Segment | ZIPs | Median $/sqft | Median sqft | Lot | Test error |
+|---|---|---|---|---|---|
+| Upscale, large homes | 108 | $198 | 2,304 | 0.35 ac | **13.0%** |
+| Pricey, compact homes | 101 | $221 | 1,707 | 0.32 ac | 15.3% |
+| Affordable | 125 | $136 | 1,600 | 0.45 ac | 15.4% |
+| Rural, big lots | 56 | $187 | 1,738 | 1.20 ac | 21.3% |
+| Small ZIP (< 10 homes) | n/a | n/a | n/a | n/a | 22.1% (+12.4% bias) |
+
+- **Worst misses:** all top-10 have $9–$32/sqft (e.g., 1,800 sqft sold for $15,950; Nags Head 2,314 sqft listed at $69,000) → non-market sales or data errors. 38 test homes < $40/sqft, median error 245%.
+- **Investor screen** (3,623 for-sale test homes): ratio = predicted / asking. Naive ≥ 1.25: 681 flags (195 under $150k, driven by the cheap-home bias). Bias-adjusted (ratio ÷ median ratio of its price band ≥ 1.25): 639 flags; 170 with ratio ≥ 1.6 (median $107/sqft vs. $185 overall → likely data/condition issues); **469 plausible (1.25–1.6)**, 210 of them priced $150k–$400k. (Fig 20)
+- **Improvements:** filter non-market sales (< ~$40/sqft); add year built/condition/coordinates/schools; separate model or weighting for the extremes; prediction intervals; current data or a price-index adjustment.
 
 ## Sources to cite (verify each one yourself)
 - USA Real Estate Dataset, Kaggle (Ahmed Shahriar Sakib), https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset

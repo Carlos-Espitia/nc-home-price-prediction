@@ -161,3 +161,50 @@ class KNearestNeighborsRegressor:
         nb = self.neighbors(X, max(ks), skip_self=skip_self)
         targets = self.y[nb]
         return {k: targets[:, :k].mean(axis=1) for k in ks}
+
+
+# ---------------------------------------------------------------- K-means
+class KMeans:
+    """K-means clustering (from the K-means HW).
+
+    1. Pick k random data points as starting centroids.
+    2. Assign each point to its nearest centroid.
+    3. Move each centroid to the mean of its points.
+    Repeat 2-3 until assignments stop changing. Run `n_init` times with different starts and
+    keep the run with the lowest inertia (sum of squared distances to assigned centroids).
+    """
+
+    def __init__(self, k: int, max_iter: int = 300, n_init: int = 10, seed: int = 0):
+        self.k = k
+        self.max_iter = max_iter
+        self.n_init = n_init
+        self.seed = seed
+        self.centroids: np.ndarray | None = None
+        self.inertia: float | None = None
+
+    @staticmethod
+    def _sq_dist(X: np.ndarray, C: np.ndarray) -> np.ndarray:
+        return ((X[:, None, :] - C[None, :, :]) ** 2).sum(axis=2)
+
+    def fit(self, X: np.ndarray) -> "KMeans":
+        rng = np.random.RandomState(self.seed)
+        best = None
+        for _ in range(self.n_init):
+            C = X[rng.choice(len(X), self.k, replace=False)].copy()
+            labels = None
+            for _ in range(self.max_iter):
+                new_labels = self._sq_dist(X, C).argmin(axis=1)
+                if labels is not None and np.array_equal(new_labels, labels):
+                    break
+                labels = new_labels
+                for j in range(self.k):
+                    if np.any(labels == j):
+                        C[j] = X[labels == j].mean(axis=0)
+            inertia = float(self._sq_dist(X, C)[np.arange(len(X)), labels].sum())
+            if best is None or inertia < best[0]:
+                best = (inertia, C.copy())
+        self.inertia, self.centroids = best
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return self._sq_dist(X, self.centroids).argmin(axis=1)
