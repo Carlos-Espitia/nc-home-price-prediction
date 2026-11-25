@@ -178,7 +178,48 @@ Running log of decisions, reasons, and results. Write the report from this.
 - **Interpretation:** the filter did not make the model better. Removing 0.58% of rows barely changes what the model learns, and v2's slightly worse number comes from a different random test sample (rows removed before the split change which homes land in test). **Lesson: changing the test sample moves the score by ~0.3–0.5 points, about as much as the gaps between the top models.** Cross-validation or repeated splits would give error bars.
 - Data cleaning is still justified: the v2 data no longer contains prices that aren't market values, which matters for the investor screen.
 
-## Sources to cite (verify each one yourself)
-- USA Real Estate Dataset, Kaggle (Ahmed Shahriar Sakib), https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset
-- scikit-learn (Pedregosa et al., 2011, *Journal of Machine Learning Research*)
-- (more to add)
+## Sources to cite (MLA 9; verify each one yourself before citing)
+Status key: ✔ = checked online Nov 25 (journal, volume, pages); ● = standard citation I'm confident in, but still open it and confirm; ⚠ = check the details noted.
+
+**Data**
+- ⚠ Sakib, Ahmed Shahriar. "USA Real Estate Dataset." *Kaggle*, www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset. Accessed 24 Nov. 2026.
+  - Check on the Kaggle page: the author's name as displayed, the version/update date, the license, and the stated collection period. Use for: Data section, in-text (Sakib).
+- ⚠ Reese, Austin. "USA Housing Listings." *Kaggle*, www.kaggle.com/datasets/austinreese/usa-housing-listings. Accessed 24 Nov. 2026.
+  - Only if you mention the first dataset considered (Craigslist rentals). Check the author name.
+
+**Related work (housing prices)**
+- ✔ Rosen, Sherwin. "Hedonic Prices and Implicit Markets: Product Differentiation in Pure Competition." *Journal of Political Economy*, vol. 82, no. 1, 1974, pp. 34–55.
+  - The classic idea behind this project: a home's price is the sum of implicit prices of its characteristics (size, baths, location). In-text: (Rosen).
+- ✔ De Cock, Dean. "Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project." *Journal of Statistics Education*, vol. 19, no. 3, 2011.
+  - Well-known housing-price regression dataset; shows the task is standard for ML coursework. Ames has ~80 features including quality and year built, which our data lacks (useful for the "missing features" discussion). In-text: (De Cock).
+- ● Harrison, David, Jr., and Daniel L. Rubinfeld. "Hedonic Housing Prices and the Demand for Clean Air." *Journal of Environmental Economics and Management*, vol. 5, no. 1, 1978, pp. 81–102.
+  - Origin of the Boston Housing dataset. Optional.
+- ⚠ Boeing, Geoff, and Paul Waddell. "New Insights into Rental Housing Markets across the United States: Web Scraping and Analyzing Craigslist Rental Listings." *Journal of Planning Education and Research*, vol. 37, no. 4, 2017, pp. 457–476.
+  - Only if you discuss the Craigslist rental data. Confirm volume/pages.
+
+**Methods**
+- ✔ Micci-Barreca, Daniele. "A Preprocessing Scheme for High-Cardinality Categorical Attributes in Classification and Prediction Problems." *ACM SIGKDD Explorations Newsletter*, vol. 3, no. 1, 2001, pp. 27–32, doi:10.1145/507533.507538.
+  - The original target-encoding paper; it describes blending ZIP-code statistics across hierarchy levels, exactly our ZIP → city → state smoothing. In-text: (Micci-Barreca).
+- ● Hoerl, Arthur E., and Robert W. Kennard. "Ridge Regression: Biased Estimation for Nonorthogonal Problems." *Technometrics*, vol. 12, no. 1, 1970, pp. 55–67.
+  - Ridge regression. In-text: (Hoerl and Kennard).
+- ● Kingma, Diederik P., and Jimmy Ba. "Adam: A Method for Stochastic Optimization." *3rd International Conference on Learning Representations (ICLR)*, 2015, arxiv.org/abs/1412.6980.
+  - The optimizer MLPRegressor uses. In-text: (Kingma and Ba).
+
+**Software**
+- ● Pedregosa, Fabian, et al. "Scikit-learn: Machine Learning in Python." *Journal of Machine Learning Research*, vol. 12, 2011, pp. 2825–2830. In-text: (Pedregosa et al.)
+- ● Harris, Charles R., et al. "Array Programming with NumPy." *Nature*, vol. 585, 2020, pp. 357–362, doi:10.1038/s41586-020-2649-2.
+- ● McKinney, Wes. "Data Structures for Statistical Computing in Python." *Proceedings of the 9th Python in Science Conference*, 2010, pp. 56–61. (pandas)
+- ● Hunter, John D. "Matplotlib: A 2D Graphics Environment." *Computing in Science & Engineering*, vol. 9, no. 3, 2007, pp. 90–95.
+- ● Waskom, Michael L. "seaborn: Statistical Data Visualization." *Journal of Open Source Software*, vol. 6, no. 60, 2021, p. 3021.
+
+**Course materials and AI** (templates; fill in the real details)
+- Course notes: Lastname, Firstname. "Lecture title." ITCS 3156: Introduction to Machine Learning, University of North Carolina at Charlotte, Fall 2026. Lecture slides/notes.
+  - Use for the OLS, gradient descent, Ridge, KNN, K-means and neural-network formulas. Check the instructor's exact name on Canvas.
+- AI tool (MLA's recommended format): "Description or text of the prompt" prompt. *Claude*, Opus 5.5 version, Anthropic, 25 Nov. 2026, claude.ai.
+  - MLA treats the prompt as the title. Also describe the AI use in the Acknowledgement section (follow the course's "AI Acknowledgement Example" file).
+
+**Where to cite in the report**
+- Data: Sakib (dataset), De Cock (comparison).
+- Introduction / related work: Rosen (hedonic pricing), De Cock / Harrison and Rubinfeld (housing regression in ML).
+- Methods: course notes (OLS, GD, Ridge, KNN, K-means, MLP), Hoerl and Kennard (Ridge), Micci-Barreca (ZIP target encoding), Kingma and Ba (Adam).
+- Implementation: Pedregosa et al., Harris et al., McKinney, Hunter, Waskom.
