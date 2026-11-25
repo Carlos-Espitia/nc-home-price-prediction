@@ -97,6 +97,19 @@ Running log of decisions, reasons, and results. Write the report from this.
 - **Location** (Fig 6): median $/sqft Fayetteville $122, Greenville $125, Jacksonville $128, New Bern $141, Gastonia $163, Leland $184, Wilmington $205, Charlotte $213, Raleigh $229, Asheville $287. ZIP medians range from $16 to $1,290/sqft. 727 ZIPs, median 17 homes each, 281 (39%) with < 10 homes. (Fig 9)
 - **Status** (Fig 7): for_sale median $353,720 / 1,891 sqft vs. sold $300,000 / 1,664 sqft. Part of the gap is size.
 
+### 7. Preprocessing (Nov 25, approved by Carlos; `src/preprocess.py`, `notebooks/02_preprocessing.ipynb`)
+- **Outlier limits (inclusive):** price $10k–$5M, size 300–15,000 sqft, beds ≤ 10, baths ≤ 10, lot ≤ 100 acres (missing lot sizes kept). Removed **143 rows (0.35%)** → **40,624**. Removed per rule (first rule hit): price 42, size 17, beds 31, baths 13, lot 40.
+- **Split** (seed 42): **train 28,436 / validation 6,094 / test 6,094** (70/15/15). Similar medians ($330k–$335k) and share sold (40%).
+- **Lot size:** 5,415 missing, filled with the training median (0.35 acres) + `acre_lot_missing` flag. Missing-lot homes are cheaper/smaller ($303k / 1,497 sqft vs. $339k / 1,837 sqft).
+- **ZIP feature `zip_log_ppsf`:** median log($/sqft) per ZIP, blended (n·ZIP + 10·city)/(n+10); city blended toward the state the same way; unseen ZIP → city → state.
+  - Examples: 28207 Charlotte n=93: $402 → $378; 28212 Charlotte n=145: $187 → $189; 27101 Winston-Salem n=1: $83 → $142 (city $150).
+  - **Out-of-fold (5-fold) encoding for training rows** prevents target leakage. Experiment with a one-feature linear fit: leaky train R² 0.289 / val 0.277; out-of-fold train 0.275 / val 0.277. Small effect here because smoothing already limits it; matters more for flexible models (KNN, MLP).
+- **Final 7 inputs:** log_house_size, bed, bath, log_acre_lot (log1p), acre_lot_missing, sold, zip_log_ppsf. **Target:** log(price).
+- **Dropped:** brokered_by, street (anonymized IDs), prev_sold_date (the sale date for sold homes → leaks status), state (constant), city/zip_code (captured by zip_log_ppsf).
+- **Correlation with log price (train):** size 0.70, bath 0.66, ZIP 0.52, bed 0.46, lot 0.18, lot missing -0.07, sold -0.14. (Fig 10)
+- **Standardized** with training mean/std (`Standardize` class from the GD & LMS HW). `get_arrays()` returns X/y for all splits.
+- Processed CSVs in `data/processed/` (git-ignored; rebuild with `python src/preprocess.py`).
+
 ## Key results
 (fill in as we go)
 
